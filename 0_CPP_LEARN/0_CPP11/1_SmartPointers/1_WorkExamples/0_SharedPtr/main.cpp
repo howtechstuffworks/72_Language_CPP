@@ -8,6 +8,7 @@ class UniqueFd {
 public:
   UniqueFd(int fdesc, size_t fsize) : fdesc_(fdesc), fsize_(fsize) {}
   ~UniqueFd() {
+    std::cout<<"Destructor called"<<std::endl;
   }
 
   int get_fdesc() const { return fdesc_; }
@@ -39,6 +40,7 @@ public:
   FBI(std::string lib, std::shared_ptr<UniqueFd> ufd) : lib_(lib), ufd_(ufd) {}
   ~FBI() {}
   std::string get_libname() const {return lib_; }
+  std::weak_ptr<UniqueFd> getWeakUfd() { return ufd_; };
 private:
   std::string lib_;
   std::shared_ptr<UniqueFd> ufd_;
@@ -47,29 +49,28 @@ private:
 std::vector<FBI*> fbi_vec;
 
 int main() {
-  std::shared_ptr<UniqueFd> ufd;
-  for (auto& lib : libs) {
-    GetUniqueFileHandle(lib, ufd);
-    std::cout<<lib<<" : "<<ufd.use_count()<<std::endl;
-    fbi_vec.push_back(new FBI(lib, ufd));
-    std::cout<<lib<<" : "<<ufd.use_count()<<std::endl;
+  {
+    std::shared_ptr<UniqueFd> ufd;
+    for (auto& lib : libs) {
+      GetUniqueFileHandle(lib, ufd);
+      std::cout<<lib<<" : "<<ufd.use_count()<<std::endl;
+      fbi_vec.push_back(new FBI(lib, ufd));
+      std::cout<<lib<<" : "<<ufd.use_count()<<std::endl;
+    }
   }
-
   int dummy = 1;
 
   // Cleanup
   std::cout<<std::endl<<"At Cleanup"<<std::endl;
   for (auto& fbi: fbi_vec) {
     std::string lib_name = fbi->get_libname();
-    std::cout<<lib_name<<" : "<<ufd.use_count()<<std::endl;
+    std::cout<<lib_name<<" : "<<fbi->getWeakUfd().use_count()<<std::endl;
     delete fbi;
-    std::cout<<lib_name<<" : "<<ufd.use_count()<<std::endl;
-    if (ufd.use_count() == 2) {
+    std::cout<<lib_name<<" : "<<fbi->getWeakUfd().use_count()<<std::endl;
+    if (fbi->getWeakUfd().use_count() == 1) {
       ufdmap.erase(lib_name);
     }
   }
-
-  std::cout<<"Final: "<<ufd.use_count()<<std::endl;
 
   return 0;
 }
